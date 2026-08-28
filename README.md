@@ -2,7 +2,7 @@
 
 Laravel 12 API for **شطبة / Shatbha** — RTL finishing-pack ERP (Sanctum auth, customer journals, expenses, contractor jobs, P&L).
 
-Companion Flutter app: run locally against this API, or point it at the Render URL with `--dart-define=API_BASE_URL=…`.
+Companion Flutter app: run locally against this API, or point it at the hosted URL with `--dart-define=API_BASE_URL=…`.
 
 ## Demo users
 
@@ -44,34 +44,42 @@ php artisan migrate:fresh --seed
 
 Tests: `php artisan test`
 
-## Host on Render (free)
+## Host on Koyeb (free, no card)
 
-PHP is not a native Render runtime, so this API deploys as **Docker + PostgreSQL**. Blueprint: [`render.yaml`](render.yaml) ([docs](https://render.com/docs/deploy-php-laravel-docker)).
+PHP deploys as **Docker**. Use **Koyeb** for the API and **Neon** for Postgres. Koyeb’s own free database is only **5 compute hours per month**, so Neon is the durable free option (no card, scales to zero when idle).
 
-Free-tier limits (no credit card required):
+1. Push this repo to GitHub (`islam-kamal/Shatbha-backend`).
+2. Create a free Postgres database at [console.neon.tech](https://console.neon.tech) (no card). Click **Connect**, copy the connection string (must include `sslmode=require`). Use the **direct** (non-pooled) URI.
+3. Sign up at [app.koyeb.com](https://app.koyeb.com) (no card). **Create Web Service** → **GitHub** → this repo → branch `main`.
+4. Builder: **Dockerfile**. Instance: **Free** (Frankfurt or Washington, D.C.).
+5. Exposed ports: keep Koyeb’s default **8000** (the start script binds nginx to `$PORT`). Health check path: `/up` if offered.
+6. Environment variables (Bulk Edit):
 
-- Web service **spins down after 15 minutes idle**; the next request takes ~1 minute to wake.
-- Free Postgres is **1 GB** and **expires after 30 days** (then a 14-day grace period). Recreate or upgrade before then, or data is deleted.
-- 750 free instance hours per month.
-
-1. Generate a Laravel key:
-
-```bash
-php artisan key:generate --show
+```
+APP_ENV=production
+APP_DEBUG=false
+APP_KEY=base64:PASTE_php_artisan_key_generate_show
+APP_URL=https://{{ KOYEB_PUBLIC_DOMAIN }}
+LOG_CHANNEL=stderr
+DB_CONNECTION=pgsql
+DATABASE_URL=postgresql://USER:PASS@HOST/neondb?sslmode=require
+DB_URL={{ DATABASE_URL }}
+SESSION_DRIVER=database
+CACHE_STORE=database
+QUEUE_CONNECTION=sync
 ```
 
-2. Open [Render Dashboard](https://dashboard.render.com/) → **New** → **Blueprint**. Connect this GitHub repo. Render reads `render.yaml` and creates `shatbha-api` + `shatbha-db` on the **free** plan.
-3. When prompted for `APP_KEY`, paste the `base64:...` value from step 1. Do not use Render’s auto-generated secret — Laravel needs that exact format.
-4. After the first deploy, open `https://YOUR-SERVICE.onrender.com/up`. Login:
+Generate `APP_KEY` with `php artisan key:generate --show`. Paste Neon’s URI into `DATABASE_URL`.
+7. Deploy. URL looks like `https://shatbha-xxxxx.koyeb.app`. Check `/up`, then:
 
 ```bash
-curl -s -X POST https://YOUR-SERVICE.onrender.com/api/v1/login \
+curl -s -X POST https://YOUR-APP.koyeb.app/api/v1/login \
   -H 'Accept: application/json' \
   -d 'email=admin@shatbha.test&password=password'
 ```
 
-Point the Flutter app at that URL with `--dart-define=API_BASE_URL=https://YOUR-SERVICE.onrender.com`.
+Point Flutter at `--dart-define=API_BASE_URL=https://YOUR-APP.koyeb.app`.
 
-Demo data seeds only if those users are missing.
+Free-tier notes: the web instance **sleeps after ~1 hour idle** (cold start on the next request). Neon also sleeps when idle. First request after sleep can take ~30–60s. Demo users seed only if they are missing.
 
-**Manual setup** (no Blueprint): New **Web Service**, Language **Docker**, plan **Free**, Dockerfile path `./Dockerfile`. New **PostgreSQL**, plan **Free**. Set `DB_CONNECTION=pgsql`, `DATABASE_URL` / `DB_URL` to the database **Internal** URL, `APP_KEY`, `APP_ENV=production`, `APP_DEBUG=false`.
+**Render** (`render.yaml`) is a fallback. That workspace is locked from paid services until Sep 1, 2026 if a card was removed.

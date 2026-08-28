@@ -26,4 +26,6 @@ RUN composer install --no-dev --optimize-autoloader --working-dir=/var/www/html 
     && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache \
     && chmod -R 777 storage bootstrap/cache
 
+EXPOSE 80 8000
+
 CMD ["/start.sh"]
