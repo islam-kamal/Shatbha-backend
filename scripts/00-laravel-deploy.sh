@@ -20,6 +20,9 @@ if [ "$PORT" != "80" ]; then
   done
 fi
 
+echo "Discovering packages..."
+php artisan package:discover --ansi
+
 echo "Caching config..."
 php artisan config:cache
 
