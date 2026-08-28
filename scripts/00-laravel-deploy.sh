@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Must finish quickly: /start.sh only starts nginx after this script returns.
+# Prepare Laravel, then start Apache. Do not block on Postgres.
 set -uo pipefail
 
 cd /var/www/html
@@ -10,12 +10,6 @@ if [ -z "${APP_URL:-}" ]; then
   elif [ -n "${RENDER_EXTERNAL_URL:-}" ]; then
     export APP_URL="$RENDER_EXTERNAL_URL"
   fi
-fi
-
-if grep -q '^clear_env' /usr/local/etc/php-fpm.d/www.conf 2>/dev/null; then
-  sed -i 's/^clear_env.*/clear_env = no/' /usr/local/etc/php-fpm.d/www.conf
-else
-  echo 'clear_env = no' >> /usr/local/etc/php-fpm.d/www.conf
 fi
 
 DB_URL_VALUE="${DB_URL:-${DATABASE_URL:-}}"
@@ -44,7 +38,6 @@ if [ -f vendor/autoload.php ]; then
   php artisan package:discover --ansi || true
   php artisan config:cache || true
   php artisan route:cache || true
-  echo "Migrating in background..."
   (
     for i in $(seq 1 20); do
       if php artisan migrate --force && php artisan db:seed --force; then
@@ -60,4 +53,4 @@ else
   echo "WARNING: vendor/autoload.php missing"
 fi
 
-exit 0
+exec apache2-foreground
