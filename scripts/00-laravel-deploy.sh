@@ -11,7 +11,7 @@ if [ -z "${APP_URL:-}" ]; then
   fi
 fi
 
-export PGCONNECT_TIMEOUT=8
+export PGCONNECT_TIMEOUT=30
 
 if ! php scripts/write-env.php; then
   echo "ERROR: cannot reach Neon. Apache will start but login will fail."

@@ -9,6 +9,7 @@ function envLine(string $key, string $value): string
 
 $raw = getenv('DATABASE_URL') ?: getenv('DB_URL') ?: '';
 $raw = trim($raw, " \t\n\r\0\x0B\"'");
+fwrite(STDERR, 'DATABASE_URL set='.($raw !== '' ? 'yes' : 'no').' length='.strlen($raw)."\n");
 
 $host = getenv('DB_HOST') ?: '';
 $port = getenv('DB_PORT') ?: '5432';
@@ -60,23 +61,32 @@ $env = 'APP_NAME="Shatbha"'."\n"
     ."QUEUE_CONNECTION=\"sync\"\n";
 
 file_put_contents('/var/www/html/.env', $env);
+chmod('/var/www/html/.env', 0644);
 
 echo "Neon target host={$host} db={$database} user={$username}\n";
 
 $dsn = sprintf(
-    'pgsql:host=%s;port=%s;dbname=%s;sslmode=require;connect_timeout=8',
+    'pgsql:host=%s;port=%s;dbname=%s;sslmode=require;connect_timeout=30',
     $host,
     $port,
     $database
 );
 
-try {
-    $pdo = new PDO($dsn, $username, $password, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    ]);
-    $name = $pdo->query('select current_database()')->fetchColumn();
-    echo "Neon connected ({$name})\n";
-} catch (Throwable $e) {
-    fwrite(STDERR, 'Neon connection failed: '.$e->getMessage()."\n");
-    exit(1);
+$lastError = 'unknown';
+for ($i = 1; $i <= 8; $i++) {
+    try {
+        $pdo = new PDO($dsn, $username, $password, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        ]);
+        $name = $pdo->query('select current_database()')->fetchColumn();
+        echo "Neon connected ({$name}) on attempt {$i}\n";
+        exit(0);
+    } catch (Throwable $e) {
+        $lastError = $e->getMessage();
+        fwrite(STDERR, "Neon attempt {$i}/8 failed: {$lastError}\n");
+        sleep(3);
+    }
 }
+
+fwrite(STDERR, "Neon connection failed after retries: {$lastError}\n");
+exit(1);

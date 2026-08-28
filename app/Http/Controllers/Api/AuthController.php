@@ -10,6 +10,27 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    public function dbStatus()
+    {
+        try {
+            \Illuminate\Support\Facades\DB::select('select 1 as ok');
+
+            return response()->json([
+                'ok' => true,
+                'driver' => config('database.default'),
+                'host' => config('database.connections.pgsql.host'),
+                'database' => config('database.connections.pgsql.database'),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'driver' => config('database.default'),
+                'host' => config('database.connections.pgsql.host'),
+                'error' => $e->getMessage(),
+            ], 503);
+        }
+    }
+
     public function login(Request $request)
     {
         $data = $request->validate([
@@ -24,6 +45,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'message' => 'Database is not ready. Check DATABASE_URL and that migrations ran.',
+                'error' => $e->getMessage(),
             ], 503);
         }
 
