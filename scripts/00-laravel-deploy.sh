@@ -11,17 +11,33 @@ if [ -z "${APP_URL:-}" ]; then
   fi
 fi
 
-# Koyeb sets PORT to the exposed port (default 8000). nginx-php-fpm listens on 80.
-PORT="${PORT:-80}"
-if [ "$PORT" != "80" ]; then
-  echo "Binding nginx to port ${PORT}..."
-  grep -rlE 'listen(\s+\[::\])?\s+80\b' /etc/nginx 2>/dev/null | while read -r f; do
-    sed -i "s/listen \[::\]:80/listen [::]:${PORT}/g; s/listen 80/listen ${PORT}/g" "$f"
-  done
+# php-fpm drops env vars by default, so HTTP requests would miss APP_KEY.
+if grep -q '^clear_env' /usr/local/etc/php-fpm.d/www.conf 2>/dev/null; then
+  sed -i 's/^clear_env.*/clear_env = no/' /usr/local/etc/php-fpm.d/www.conf
+else
+  echo 'clear_env = no' >> /usr/local/etc/php-fpm.d/www.conf
 fi
 
-echo "Running composer..."
-composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --working-dir=/var/www/html
+DB_URL_VALUE="${DB_URL:-${DATABASE_URL:-}}"
+cat > .env <<EOF
+APP_NAME=Shatbha
+APP_ENV=${APP_ENV:-production}
+APP_KEY=${APP_KEY:-}
+APP_DEBUG=${APP_DEBUG:-false}
+APP_URL=${APP_URL:-}
+LOG_CHANNEL=${LOG_CHANNEL:-stderr}
+DB_CONNECTION=${DB_CONNECTION:-pgsql}
+DATABASE_URL=${DATABASE_URL:-}
+DB_URL=${DB_URL_VALUE}
+SESSION_DRIVER=${SESSION_DRIVER:-database}
+CACHE_STORE=${CACHE_STORE:-database}
+QUEUE_CONNECTION=${QUEUE_CONNECTION:-sync}
+EOF
+
+if [ ! -f vendor/autoload.php ]; then
+  echo "Running composer..."
+  composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --working-dir=/var/www/html
+fi
 
 echo "Discovering packages..."
 php artisan package:discover --ansi
@@ -43,9 +59,8 @@ for i in $(seq 1 40); do
   sleep 3
 done
 if [ "$ok" -ne 1 ]; then
-  echo "Database never became ready"
-  exit 1
+  echo "Database never became ready (HTTP will still start)"
+else
+  echo "Seeding demo data if empty..."
+  php artisan db:seed --force
 fi
-
-echo "Seeding demo data if empty..."
-php artisan db:seed --force

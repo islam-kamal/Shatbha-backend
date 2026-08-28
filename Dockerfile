@@ -22,9 +22,11 @@ ENV QUEUE_CONNECTION=sync
 # Allow composer to run as root
 ENV COMPOSER_ALLOW_SUPERUSER=1
 
-RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache \
+# Use the image's Alpine composer. --no-scripts skips artisan (no APP_KEY at build).
+RUN /usr/bin/composer install --no-dev --no-interaction --no-scripts --prefer-dist --optimize-autoloader \
+    && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache \
     && chmod -R 777 storage bootstrap/cache
 
-EXPOSE 80 8000
+EXPOSE 80
 
 CMD ["/start.sh"]
