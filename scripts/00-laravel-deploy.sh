@@ -20,6 +20,9 @@ if [ "$PORT" != "80" ]; then
   done
 fi
 
+echo "Running composer..."
+composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --working-dir=/var/www/html
+
 echo "Discovering packages..."
 php artisan package:discover --ansi
 

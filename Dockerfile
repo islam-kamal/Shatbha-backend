@@ -1,7 +1,5 @@
 FROM richarvey/nginx-php-fpm:3.1.6
 
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-
 COPY . /var/www/html
 
 WORKDIR /var/www/html
@@ -24,9 +22,7 @@ ENV QUEUE_CONNECTION=sync
 # Allow composer to run as root
 ENV COMPOSER_ALLOW_SUPERUSER=1
 
-# --no-scripts: artisan is not usable at build time (no APP_KEY yet)
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts --prefer-dist \
-    && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache \
+RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache \
     && chmod -R 777 storage bootstrap/cache
 
 EXPOSE 80 8000
