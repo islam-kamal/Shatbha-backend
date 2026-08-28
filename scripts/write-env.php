@@ -9,7 +9,17 @@ function envLine(string $key, string $value): string
 
 $raw = getenv('DATABASE_URL') ?: getenv('DB_URL') ?: '';
 $raw = trim($raw, " \t\n\r\0\x0B\"'");
+
+$keys = [];
+foreach (array_keys($_ENV + $_SERVER) as $key) {
+    if (is_string($key) && preg_match('/^(APP_|DB_|DATABASE_)/', $key)) {
+        $keys[] = $key;
+    }
+}
+sort($keys);
+fwrite(STDERR, 'Env keys present: '.( $keys === [] ? '(none)' : implode(', ', $keys) )."\n");
 fwrite(STDERR, 'DATABASE_URL set='.($raw !== '' ? 'yes' : 'no').' length='.strlen($raw)."\n");
+fwrite(STDERR, 'APP_KEY set='.(getenv('APP_KEY') ? 'yes' : 'no')."\n");
 
 $host = getenv('DB_HOST') ?: '';
 $port = getenv('DB_PORT') ?: '5432';

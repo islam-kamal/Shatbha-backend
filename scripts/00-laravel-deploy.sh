@@ -13,6 +13,8 @@ fi
 
 export PGCONNECT_TIMEOUT=30
 
+echo "Runtime env keys: $(env | awk -F= '/^(APP_|DB_|DATABASE_)/ {print $1}' | sort | xargs)"
+
 if ! php scripts/write-env.php; then
   echo "ERROR: cannot reach Neon. Apache will start but login will fail."
 else
