@@ -17,7 +17,16 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $user = User::query()->with('company')->where('email', $data['email'])->first();
+        try {
+            $user = User::query()->with('company')->where('email', $data['email'])->first();
+        } catch (\Illuminate\Database\QueryException $e) {
+            report($e);
+
+            return response()->json([
+                'message' => 'Database is not ready. Check DATABASE_URL and that migrations ran.',
+            ], 503);
+        }
+
         if (! $user || ! Hash::check($data['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['بيانات الدخول غير صحيحة'],
