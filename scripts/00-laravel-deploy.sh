@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Must finish quickly: /start.sh only starts nginx after this script returns.
+set -uo pipefail
 
 cd /var/www/html
 
@@ -11,7 +12,6 @@ if [ -z "${APP_URL:-}" ]; then
   fi
 fi
 
-# php-fpm drops env vars by default, so HTTP requests would miss APP_KEY.
 if grep -q '^clear_env' /usr/local/etc/php-fpm.d/www.conf 2>/dev/null; then
   sed -i 's/^clear_env.*/clear_env = no/' /usr/local/etc/php-fpm.d/www.conf
 else
@@ -19,6 +19,12 @@ else
 fi
 
 DB_URL_VALUE="${DB_URL:-${DATABASE_URL:-}}"
+if [ -n "$DB_URL_VALUE" ] && [[ "$DB_URL_VALUE" != *"connect_timeout="* ]]; then
+  separator='?'
+  [[ "$DB_URL_VALUE" == *"?"* ]] && separator='&'
+  DB_URL_VALUE="${DB_URL_VALUE}${separator}connect_timeout=5"
+fi
+
 cat > .env <<EOF
 APP_NAME=Shatbha
 APP_ENV=${APP_ENV:-production}
@@ -27,40 +33,31 @@ APP_DEBUG=${APP_DEBUG:-false}
 APP_URL=${APP_URL:-}
 LOG_CHANNEL=${LOG_CHANNEL:-stderr}
 DB_CONNECTION=${DB_CONNECTION:-pgsql}
-DATABASE_URL=${DATABASE_URL:-}
+DATABASE_URL=${DB_URL_VALUE}
 DB_URL=${DB_URL_VALUE}
 SESSION_DRIVER=${SESSION_DRIVER:-database}
 CACHE_STORE=${CACHE_STORE:-database}
 QUEUE_CONNECTION=${QUEUE_CONNECTION:-sync}
 EOF
 
-if [ ! -f vendor/autoload.php ]; then
-  echo "Running composer..."
-  composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --working-dir=/var/www/html
-fi
-
-echo "Discovering packages..."
-php artisan package:discover --ansi
-
-echo "Caching config..."
-php artisan config:cache
-
-echo "Caching routes..."
-php artisan route:cache
-
-echo "Waiting for Postgres..."
-ok=0
-for i in $(seq 1 40); do
-  if php artisan migrate --force; then
-    ok=1
-    break
-  fi
-  echo "Database not ready yet (${i}/40)..."
-  sleep 3
-done
-if [ "$ok" -ne 1 ]; then
-  echo "Database never became ready (HTTP will still start)"
+if [ -f vendor/autoload.php ]; then
+  php artisan package:discover --ansi || true
+  php artisan config:cache || true
+  php artisan route:cache || true
+  echo "Migrating in background..."
+  (
+    for i in $(seq 1 20); do
+      if php artisan migrate --force && php artisan db:seed --force; then
+        echo "Migrations complete"
+        exit 0
+      fi
+      echo "Database not ready yet (${i}/20)..."
+      sleep 3
+    done
+    echo "Database never became ready"
+  ) &
 else
-  echo "Seeding demo data if empty..."
-  php artisan db:seed --force
+  echo "WARNING: vendor/autoload.php missing"
 fi
+
+exit 0
