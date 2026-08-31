@@ -141,5 +141,7 @@ class DatabaseSeeder extends Seeder
             'paid_on' => '2026-04-01',
         ]);
         // total 20,000 − 13,000 = 7,000 remaining
+
+        $this->call(EcosystemSeeder::class);
     }
 }

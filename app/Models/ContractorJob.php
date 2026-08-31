@@ -10,6 +10,7 @@ class ContractorJob extends Model
 {
     protected $fillable = [
         'company_id',
+        'project_id',
         'contractor_id',
         'title',
         'qty',
@@ -22,6 +23,11 @@ class ContractorJob extends Model
             'qty' => 'decimal:2',
             'unit_price' => 'decimal:2',
         ];
+    }
+
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
     }
 
     public function contractor(): BelongsTo
