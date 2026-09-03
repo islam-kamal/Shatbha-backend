@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DesignBoard extends Model
 {
-    protected $fillable = ['project_id', 'title'];
+    protected $fillable = ['project_id', 'title', 'style', 'designer_notes'];
 
     public function project(): BelongsTo
     {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Api\Concerns\ResolvesActor;
 use App\Http\Controllers\Controller;
 use App\Models\GoodsReceipt;
+use App\Models\GoodsReceiptLine;
 use App\Models\PoLine;
 use App\Models\PurchaseOrder;
 use App\Models\StockLevel;
@@ -47,8 +48,8 @@ class ProcurementController extends Controller
                 'company_id' => $this->companyId($request),
                 'project_id' => $data['project_id'],
                 'vendor_account_id' => $data['vendor_account_id'],
-                'status' => 'approved',
-                'ordered_on' => $data['ordered_on'] ?? now()->toDateString(),
+                'status' => 'draft',
+                'ordered_on' => $data['ordered_on'] ?? null,
             ]);
             foreach ($data['lines'] as $line) {
                 PoLine::query()->create([
@@ -67,14 +68,14 @@ class ProcurementController extends Controller
     {
         abort_unless($purchaseOrder->company_id === $this->companyId($request), 404);
 
-        return response()->json(['data' => $purchaseOrder->load(['vendor', 'project', 'lines', 'goodsReceipts'])]);
+        return response()->json(['data' => $purchaseOrder->load(['vendor', 'project', 'lines', 'goodsReceipts.lines'])]);
     }
 
     public function update(Request $request, PurchaseOrder $purchaseOrder)
     {
         abort_unless($purchaseOrder->company_id === $this->companyId($request), 404);
+        abort_unless($purchaseOrder->status === 'draft', 422, 'لا يمكن تعديل أمر شراء معتمد');
         $data = $request->validate([
-            'status' => ['nullable', 'string', 'in:draft,approved,sent,partial,received'],
             'ordered_on' => ['nullable', 'date'],
         ]);
         $purchaseOrder->update($data);
@@ -82,9 +83,27 @@ class ProcurementController extends Controller
         return response()->json(['data' => $purchaseOrder->fresh()->load('lines')]);
     }
 
+    public function approve(Request $request, PurchaseOrder $purchaseOrder)
+    {
+        abort_unless($purchaseOrder->company_id === $this->companyId($request), 404);
+        abort_unless($purchaseOrder->status === 'draft', 422, 'أمر الشراء معتمد بالفعل');
+        abort_if($purchaseOrder->lines()->count() === 0, 422, 'أمر الشراء بدون بنود');
+        $purchaseOrder->update([
+            'status' => 'approved',
+            'ordered_on' => $purchaseOrder->ordered_on ?? now()->toDateString(),
+        ]);
+
+        return response()->json(['data' => $purchaseOrder->fresh()->load('lines')]);
+    }
+
     public function receive(Request $request, PurchaseOrder $purchaseOrder)
     {
         abort_unless($purchaseOrder->company_id === $this->companyId($request), 404);
+        abort_unless(
+            in_array($purchaseOrder->status, ['approved', 'sent', 'partial'], true),
+            422,
+            'يجب اعتماد أمر الشراء قبل الاستلام'
+        );
         $data = $request->validate([
             'warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
             'received_on' => ['required', 'date'],
@@ -94,7 +113,7 @@ class ProcurementController extends Controller
             'lines.*.qty' => ['required', 'numeric', 'gt:0'],
         ]);
         DB::transaction(function () use ($purchaseOrder, $data) {
-            GoodsReceipt::query()->create([
+            $receipt = GoodsReceipt::query()->create([
                 'purchase_order_id' => $purchaseOrder->id,
                 'received_on' => $data['received_on'],
                 'notes' => $data['notes'] ?? null,
@@ -103,7 +122,14 @@ class ProcurementController extends Controller
             foreach ($data['lines'] as $recv) {
                 $line = PoLine::query()->where('purchase_order_id', $purchaseOrder->id)
                     ->findOrFail($recv['po_line_id']);
+                $remaining = (float) $line->qty - (float) $line->received_qty;
+                abort_if($recv['qty'] > $remaining, 422, 'الكمية المستلمة تتجاوز المتبقي');
                 $line->increment('received_qty', $recv['qty']);
+                GoodsReceiptLine::query()->create([
+                    'goods_receipt_id' => $receipt->id,
+                    'po_line_id' => $line->id,
+                    'qty' => $recv['qty'],
+                ]);
                 if ($line->product_id) {
                     $stock = StockLevel::query()->firstOrCreate(
                         ['warehouse_id' => $data['warehouse_id'], 'product_id' => $line->product_id],
@@ -126,6 +152,6 @@ class ProcurementController extends Controller
             $purchaseOrder->update(['status' => $allReceived ? 'received' : 'partial']);
         });
 
-        return response()->json(['data' => $purchaseOrder->fresh()->load(['lines', 'goodsReceipts'])]);
+        return response()->json(['data' => $purchaseOrder->fresh()->load(['lines', 'goodsReceipts.lines'])]);
     }
 }

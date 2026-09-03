@@ -2,20 +2,10 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
-class FloorPlan extends Model
+/**
+ * @deprecated Use DesignPlan. Kept for route/model binding aliases.
+ */
+class FloorPlan extends DesignPlan
 {
-    protected $fillable = ['project_id', 'room', 'media_id'];
-
-    public function project(): BelongsTo
-    {
-        return $this->belongsTo(Project::class);
-    }
-
-    public function media(): BelongsTo
-    {
-        return $this->belongsTo(Media::class);
-    }
+    protected $table = 'design_plans';
 }

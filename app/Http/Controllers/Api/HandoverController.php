@@ -6,14 +6,16 @@ use App\Http\Controllers\Api\Concerns\ResolvesActor;
 use App\Http\Controllers\Controller;
 use App\Models\DeliveryMilestone;
 use App\Models\HandoverChecklist;
-use App\Models\Project;
 use App\Models\SignOff;
 use App\Models\SnagItem;
+use App\Services\ProjectStatusService;
 use Illuminate\Http\Request;
 
 class HandoverController extends Controller
 {
     use ResolvesActor;
+
+    public function __construct(private ProjectStatusService $statusService) {}
 
     public function milestones(Request $request, int $project)
     {
@@ -57,6 +59,19 @@ class HandoverController extends Controller
         return response()->json(['data' => $snag], 201);
     }
 
+    public function updateSnag(Request $request, int $project, SnagItem $snag)
+    {
+        $this->projectForCompany($request, $project);
+        abort_unless($snag->project_id === $project, 404);
+        $data = $request->validate([
+            'title' => ['sometimes', 'string', 'max:255'],
+            'status' => ['nullable', 'string', 'in:open,fixed,closed'],
+        ]);
+        $snag->update($data);
+
+        return response()->json(['data' => $snag->fresh()]);
+    }
+
     public function checklist(Request $request, int $project)
     {
         $this->projectForCompany($request, $project);
@@ -76,6 +91,19 @@ class HandoverController extends Controller
         $item = HandoverChecklist::query()->create(['project_id' => $project, ...$data]);
 
         return response()->json(['data' => $item], 201);
+    }
+
+    public function updateChecklistItem(Request $request, int $project, HandoverChecklist $checklistItem)
+    {
+        $this->projectForCompany($request, $project);
+        abort_unless($checklistItem->project_id === $project, 404);
+        $data = $request->validate([
+            'item' => ['sometimes', 'string', 'max:255'],
+            'is_checked' => ['nullable', 'boolean'],
+        ]);
+        $checklistItem->update($data);
+
+        return response()->json(['data' => $checklistItem->fresh()]);
     }
 
     public function signOffs(Request $request, int $project)
@@ -107,7 +135,27 @@ class HandoverController extends Controller
     public function markHandedOver(Request $request, int $project)
     {
         $proj = $this->projectForCompany($request, $project);
-        $proj->update(['status' => 'handed_over']);
+        abort_unless($proj->status === 'delivered', 422, 'المشروع لم يُسلّم بعد');
+
+        $openSnags = SnagItem::query()
+            ->where('project_id', $project)
+            ->where('status', 'open')
+            ->count();
+        abort_if($openSnags > 0, 422, 'يوجد ملاحظات مفتوحة');
+
+        $unchecked = HandoverChecklist::query()
+            ->where('project_id', $project)
+            ->where('is_checked', false)
+            ->count();
+        abort_if($unchecked > 0, 422, 'قائمة التسليم غير مكتملة');
+
+        abort_if(
+            SignOff::query()->where('project_id', $project)->doesntExist(),
+            422,
+            'التوقيع مطلوب'
+        );
+
+        $this->statusService->transition($proj, 'handed_over');
 
         return response()->json(['data' => $proj->fresh()]);
     }

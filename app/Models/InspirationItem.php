@@ -7,7 +7,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class InspirationItem extends Model
 {
-    protected $fillable = ['design_board_id', 'title', 'tags', 'media_id'];
+    protected $fillable = [
+        'design_board_id',
+        'room',
+        'category',
+        'title',
+        'tags',
+        'notes',
+        'media_id',
+    ];
 
     public function designBoard(): BelongsTo
     {

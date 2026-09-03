@@ -19,6 +19,8 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         if (User::query()->where('email', 'admin@shatbha.test')->exists()) {
+            $this->call(EcosystemSeeder::class);
+
             return;
         }
 

@@ -14,6 +14,10 @@ class Project extends Model
         'title',
         'site_address',
         'status',
+        'design_status',
+        'design_approved_at',
+        'design_submitted_at',
+        'design_reject_reason',
         'start_date',
         'end_date',
         'budget_planned',
@@ -25,6 +29,8 @@ class Project extends Model
             'start_date' => 'date',
             'end_date' => 'date',
             'budget_planned' => 'decimal:2',
+            'design_approved_at' => 'datetime',
+            'design_submitted_at' => 'datetime',
         ];
     }
 
@@ -70,7 +76,12 @@ class Project extends Model
 
     public function floorPlans(): HasMany
     {
-        return $this->hasMany(FloorPlan::class);
+        return $this->hasMany(DesignPlan::class);
+    }
+
+    public function designPlans(): HasMany
+    {
+        return $this->hasMany(DesignPlan::class);
     }
 
     public function boqLines(): HasMany

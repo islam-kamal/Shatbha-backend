@@ -6,11 +6,14 @@ use App\Http\Controllers\Api\Concerns\ResolvesActor;
 use App\Http\Controllers\Controller;
 use App\Models\Party;
 use App\Models\Project;
+use App\Services\ProjectStatusService;
 use Illuminate\Http\Request;
 
 class ProjectController extends Controller
 {
     use ResolvesActor;
+
+    public function __construct(private ProjectStatusService $statusService) {}
 
     public function index(Request $request)
     {
@@ -41,6 +44,7 @@ class ProjectController extends Controller
                 ->findOrFail($data['customer_id']);
         }
         $data['company_id'] = $this->companyId($request);
+        $data['design_status'] = $data['design_status'] ?? 'draft';
         $project = Project::query()->create($data)->load('customer');
 
         return response()->json(['data' => $project], 201);
@@ -72,7 +76,13 @@ class ProjectController extends Controller
                 ->where('type', 'customer')
                 ->findOrFail($data['customer_id']);
         }
-        $project->update($data);
+        if (isset($data['status']) && $data['status'] !== $project->status) {
+            $this->statusService->transition($project, $data['status']);
+            unset($data['status']);
+        }
+        if ($data !== []) {
+            $project->update($data);
+        }
 
         return response()->json(['data' => $project->fresh()->load('customer')]);
     }

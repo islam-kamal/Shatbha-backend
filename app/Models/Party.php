@@ -42,4 +42,14 @@ class Party extends Model
     {
         return $this->hasMany(ContractorJob::class, 'contractor_id');
     }
+
+    public function clientAccount(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ClientAccount::class);
+    }
+
+    public function projects(): HasMany
+    {
+        return $this->hasMany(Project::class, 'customer_id');
+    }
 }

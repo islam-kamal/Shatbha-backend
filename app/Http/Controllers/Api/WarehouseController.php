@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Api\Concerns\ResolvesActor;
 use App\Http\Controllers\Controller;
 use App\Models\DeliveryNote;
+use App\Models\DeliveryNoteLine;
 use App\Models\StockLevel;
 use App\Models\StockMovement;
 use App\Models\Warehouse;
@@ -113,7 +114,7 @@ class WarehouseController extends Controller
 
         return response()->json([
             'data' => DeliveryNote::query()
-                ->with('warehouse')
+                ->with(['warehouse', 'lines.product'])
                 ->where('project_id', $project)
                 ->orderByDesc('id')
                 ->get(),
@@ -127,9 +128,58 @@ class WarehouseController extends Controller
             'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
             'status' => ['nullable', 'string', 'max:50'],
             'delivered_on' => ['nullable', 'date'],
+            'lines' => ['nullable', 'array'],
+            'lines.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'lines.*.description' => ['required', 'string', 'max:255'],
+            'lines.*.qty' => ['required', 'numeric', 'gt:0'],
         ]);
-        $note = DeliveryNote::query()->create(['project_id' => $project, ...$data])->load('warehouse');
+        $note = DB::transaction(function () use ($project, $data) {
+            $lines = $data['lines'] ?? [];
+            unset($data['lines']);
+            $note = DeliveryNote::query()->create(['project_id' => $project, ...$data]);
+            foreach ($lines as $line) {
+                DeliveryNoteLine::query()->create([
+                    'delivery_note_id' => $note->id,
+                    ...$line,
+                ]);
+            }
+
+            return $note->load(['warehouse', 'lines.product']);
+        });
 
         return response()->json(['data' => $note], 201);
+    }
+
+    public function updateDeliveryNote(Request $request, int $project, DeliveryNote $deliveryNote)
+    {
+        $this->projectForCompany($request, $project);
+        abort_unless($deliveryNote->project_id === $project, 404);
+        $data = $request->validate([
+            'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
+            'status' => ['nullable', 'string', 'max:50'],
+            'delivered_on' => ['nullable', 'date'],
+            'lines' => ['nullable', 'array'],
+            'lines.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'lines.*.description' => ['required', 'string', 'max:255'],
+            'lines.*.qty' => ['required', 'numeric', 'gt:0'],
+        ]);
+        $note = DB::transaction(function () use ($deliveryNote, $data) {
+            $lines = $data['lines'] ?? null;
+            unset($data['lines']);
+            $deliveryNote->update($data);
+            if (is_array($lines)) {
+                $deliveryNote->lines()->delete();
+                foreach ($lines as $line) {
+                    DeliveryNoteLine::query()->create([
+                        'delivery_note_id' => $deliveryNote->id,
+                        ...$line,
+                    ]);
+                }
+            }
+
+            return $deliveryNote->fresh()->load(['warehouse', 'lines.product']);
+        });
+
+        return response()->json(['data' => $note]);
     }
 }

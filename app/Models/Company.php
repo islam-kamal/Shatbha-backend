@@ -10,7 +10,14 @@ class Company extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'subtitle', 'pack'];
+    protected $fillable = ['name', 'subtitle', 'pack', 'currency', 'vat_rate'];
+
+    protected function casts(): array
+    {
+        return [
+            'vat_rate' => 'decimal:2',
+        ];
+    }
 
     public function users(): HasMany
     {

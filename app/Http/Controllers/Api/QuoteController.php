@@ -16,6 +16,12 @@ class QuoteController extends Controller
 {
     use ResolvesActor;
 
+    private const VENDOR_RESPONDABLE = ['draft', 'sent'];
+
+    private const COMPANY_ACCEPTABLE = ['sent'];
+
+    private const COMPANY_REJECTABLE = ['draft', 'sent'];
+
     public function index(Request $request)
     {
         if ($this->isVendor($request)) {
@@ -45,11 +51,12 @@ class QuoteController extends Controller
             'notes' => ['nullable', 'string'],
         ]);
         $this->projectForCompany($request, (int) $data['project_id']);
-        VendorAccount::query()->where('is_active', true)->findOrFail($data['vendor_account_id']);
+        $vendor = VendorAccount::query()->where('is_active', true)->findOrFail($data['vendor_account_id']);
+        abort_unless(in_array($vendor->type, ['contractor', 'supplier'], true), 422, 'نوع المورد غير صالح');
         $quote = QuoteRequest::query()->create([
             ...$data,
             'company_id' => $this->companyId($request),
-            'status' => 'sent',
+            'status' => 'draft',
         ])->load(['vendor', 'project']);
 
         return response()->json(['data' => $quote], 201);
@@ -67,7 +74,11 @@ class QuoteController extends Controller
     {
         $vendor = $this->vendor($request);
         abort_unless($quote->vendor_account_id === $vendor->id, 404);
-        abort_if(in_array($quote->status, ['accepted', 'rejected'], true), 422, 'العرض مغلق');
+        abort_unless(
+            in_array($quote->status, self::VENDOR_RESPONDABLE, true),
+            422,
+            'لا يمكن الرد على هذا العرض في حالته الحالية'
+        );
         $data = $request->validate([
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.description' => ['required', 'string', 'max:255'],
@@ -91,7 +102,11 @@ class QuoteController extends Controller
     public function accept(Request $request, QuoteRequest $quote)
     {
         abort_unless($quote->company_id === $this->companyId($request), 404);
-        abort_unless($quote->status === 'sent', 422, 'لا يمكن قبول هذا العرض');
+        abort_unless(
+            in_array($quote->status, self::COMPANY_ACCEPTABLE, true),
+            422,
+            'لا يمكن قبول هذا العرض في حالته الحالية'
+        );
         abort_if($quote->lines()->count() === 0, 422, 'العرض بدون بنود');
         $job = DB::transaction(function () use ($quote) {
             $total = (float) $quote->lines()->selectRaw('SUM(qty * unit_price) as t')->value('t');
@@ -125,7 +140,11 @@ class QuoteController extends Controller
     public function reject(Request $request, QuoteRequest $quote)
     {
         abort_unless($quote->company_id === $this->companyId($request), 404);
-        abort_unless(in_array($quote->status, ['draft', 'sent'], true), 422);
+        abort_unless(
+            in_array($quote->status, self::COMPANY_REJECTABLE, true),
+            422,
+            'لا يمكن رفض هذا العرض في حالته الحالية'
+        );
         $quote->update(['status' => 'rejected']);
 
         return response()->json(['data' => $quote]);
