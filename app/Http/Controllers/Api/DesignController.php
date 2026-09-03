@@ -11,6 +11,8 @@ use App\Models\DesignPlanComment;
 use App\Models\InspirationItem;
 use App\Models\Project;
 use App\Models\ProjectMaterialLine;
+use App\Models\ProjectRequest;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -18,6 +20,8 @@ use Illuminate\Validation\Rule;
 class DesignController extends Controller
 {
     use ResolvesActor;
+
+    public function __construct(private NotificationService $notifications) {}
 
     private const STYLES = ['modern', 'classic', 'minimal', 'neoclassic', 'industrial', 'other'];
 
@@ -426,6 +430,38 @@ class DesignController extends Controller
             'design_submitted_at' => now(),
             'design_reject_reason' => null,
             'design_approved_at' => null,
+        ]);
+
+        $clientAccount = null;
+        if ($proj->customer_id) {
+            $this->notifications->notifyClientForParty(
+                $proj->customer_id,
+                'design_submitted',
+                'تصميم بانتظار اعتمادك',
+                'مشروع '.$proj->title.' جاهز للمراجعة',
+                [
+                    'route' => '/client/projects/'.$proj->id.'/design-approval',
+                    'project_id' => $proj->id,
+                ]
+            );
+            $clientAccount = \App\Models\ClientAccount::query()
+                ->where('party_id', $proj->customer_id)
+                ->where('is_active', true)
+                ->first();
+        }
+
+        ProjectRequest::query()->create([
+            'project_id' => $proj->id,
+            'company_id' => $proj->company_id,
+            'type' => 'design_approval',
+            'title' => 'اعتماد تصميم — '.$proj->title,
+            'body' => 'يرجى مراجعة حزمة التصميم واعتمادها أو رفضها.',
+            'status' => 'open',
+            'assignee_type' => $clientAccount ? 'client' : null,
+            'assignee_id' => $clientAccount?->id,
+            'created_by_user_id' => $this->companyUser($request)->id,
+            'related_type' => Project::class,
+            'related_id' => $proj->id,
         ]);
 
         return response()->json(['data' => $proj->fresh()]);

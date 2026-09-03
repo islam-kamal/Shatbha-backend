@@ -2,15 +2,18 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ClientAuthController;
+use App\Http\Controllers\Api\ClientInviteController;
 use App\Http\Controllers\Api\ClientProjectController;
 use App\Http\Controllers\Api\CompanyController;
 use App\Http\Controllers\Api\CustomerEntryController;
 use App\Http\Controllers\Api\DesignController;
+use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\ExpenseCategoryController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\HandoverController;
 use App\Http\Controllers\Api\JobController;
 use App\Http\Controllers\Api\MediaController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PartyController;
 use App\Http\Controllers\Api\ProcurementController;
 use App\Http\Controllers\Api\ProductCategoryController;
@@ -18,13 +21,16 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProjectManagerController;
 use App\Http\Controllers\Api\ProjectMaterialController;
+use App\Http\Controllers\Api\ProjectMemberController;
 use App\Http\Controllers\Api\ProjectReportController;
+use App\Http\Controllers\Api\ProjectRequestController;
 use App\Http\Controllers\Api\QuoteController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\VendorAuthController;
 use App\Http\Controllers\Api\VendorController;
 use App\Http\Controllers\Api\VendorPortfolioController;
+use App\Http\Controllers\Api\VendorProjectController;
 use App\Http\Controllers\Api\WarehouseController;
 use App\Http\Controllers\Api\WorkTypeController;
 use Illuminate\Support\Facades\Route;
@@ -41,6 +47,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 
+    Route::post('/device-tokens', [DeviceTokenController::class, 'store']);
+    Route::delete('/device-tokens', [DeviceTokenController::class, 'destroy']);
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+
     Route::get('/client/projects', [ClientProjectController::class, 'index']);
     Route::get('/client/projects/{project}', [ClientProjectController::class, 'show']);
     Route::get('/client/projects/{project}/design', [ClientProjectController::class, 'designPackage']);
@@ -48,6 +61,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/client/projects/{project}/design/reject', [ClientProjectController::class, 'rejectDesign']);
     Route::post('/client/projects/{project}/design/plans/{plan}/comments', [ClientProjectController::class, 'storePlanComment']);
     Route::post('/client/projects/{project}/handover/sign-off', [ClientProjectController::class, 'handoverSignOff']);
+    Route::get('/client/projects/{project}/requests', [ProjectRequestController::class, 'indexForClient']);
+    Route::get('/client/projects/{project}/requests/{projectRequest}', [ProjectRequestController::class, 'showForClient']);
+    Route::post('/client/projects/{project}/requests/{projectRequest}/approve', [ProjectRequestController::class, 'approve']);
+    Route::post('/client/projects/{project}/requests/{projectRequest}/reject', [ProjectRequestController::class, 'reject']);
+    Route::post('/client/projects/{project}/requests/{projectRequest}/comments', [ProjectRequestController::class, 'storeComment']);
+
+    Route::get('/vendor/projects', [VendorProjectController::class, 'index']);
+    Route::get('/vendor/projects/{project}', [VendorProjectController::class, 'show']);
+    Route::get('/vendor/projects/{project}/requests', [ProjectRequestController::class, 'indexForVendor']);
+    Route::get('/vendor/projects/{project}/requests/{projectRequest}', [ProjectRequestController::class, 'showForVendor']);
+    Route::post('/vendor/projects/{project}/requests/{projectRequest}/comments', [ProjectRequestController::class, 'storeComment']);
+    Route::post('/vendor/projects/{project}/requests/{projectRequest}/submit', [ProjectRequestController::class, 'submitResponse']);
 
     Route::get('/company', [CompanyController::class, 'show']);
     Route::put('/company', [CompanyController::class, 'update']);
@@ -85,6 +110,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/projects', [ProjectController::class, 'store']);
     Route::get('/projects/{project}', [ProjectController::class, 'show']);
     Route::put('/projects/{project}', [ProjectController::class, 'update']);
+
+    Route::get('/projects/{project}/members', [ProjectMemberController::class, 'index']);
+    Route::post('/projects/{project}/members', [ProjectMemberController::class, 'store']);
+    Route::delete('/projects/{project}/members/{member}', [ProjectMemberController::class, 'destroy']);
+    Route::post('/customers/{customer}/invite-client', [ClientInviteController::class, 'invite']);
+
+    Route::get('/projects/{project}/requests', [ProjectRequestController::class, 'indexForCompany']);
+    Route::post('/projects/{project}/requests', [ProjectRequestController::class, 'store']);
+    Route::get('/projects/{project}/requests/{projectRequest}', [ProjectRequestController::class, 'showForCompany']);
+    Route::post('/projects/{project}/requests/{projectRequest}/comments', [ProjectRequestController::class, 'storeComment']);
+    Route::post('/projects/{project}/requests/{projectRequest}/approve', [ProjectRequestController::class, 'approve']);
+    Route::post('/projects/{project}/requests/{projectRequest}/reject', [ProjectRequestController::class, 'reject']);
 
     Route::get('/projects/{project}/reports/summary', [ProjectReportController::class, 'summary']);
 

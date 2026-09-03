@@ -9,6 +9,8 @@ use App\Models\Party;
 use App\Models\QuoteLine;
 use App\Models\QuoteRequest;
 use App\Models\VendorAccount;
+use App\Services\NotificationService;
+use App\Services\ProjectMembershipService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -22,6 +24,11 @@ class QuoteController extends Controller
 
     private const COMPANY_REJECTABLE = ['draft', 'sent'];
 
+    public function __construct(
+        private NotificationService $notifications,
+        private ProjectMembershipService $membership,
+    ) {}
+
     public function index(Request $request)
     {
         if ($this->isVendor($request)) {
@@ -29,12 +36,14 @@ class QuoteController extends Controller
             $quotes = QuoteRequest::query()
                 ->with(['project', 'lines'])
                 ->where('vendor_account_id', $vendor->id)
+                ->when($request->filled('project_id'), fn ($q) => $q->where('project_id', (int) $request->query('project_id')))
                 ->orderByDesc('id')
                 ->get();
         } else {
             $quotes = QuoteRequest::query()
                 ->with(['vendor', 'project', 'lines'])
                 ->where('company_id', $this->companyId($request))
+                ->when($request->filled('project_id'), fn ($q) => $q->where('project_id', (int) $request->query('project_id')))
                 ->orderByDesc('id')
                 ->get();
         }
@@ -50,7 +59,7 @@ class QuoteController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
         ]);
-        $this->projectForCompany($request, (int) $data['project_id']);
+        $project = $this->projectForCompany($request, (int) $data['project_id']);
         $vendor = VendorAccount::query()->where('is_active', true)->findOrFail($data['vendor_account_id']);
         abort_unless(in_array($vendor->type, ['contractor', 'supplier'], true), 422, 'نوع المورد غير صالح');
         $quote = QuoteRequest::query()->create([
@@ -58,6 +67,18 @@ class QuoteController extends Controller
             'company_id' => $this->companyId($request),
             'status' => 'draft',
         ])->load(['vendor', 'project']);
+
+        $this->notifications->notifyVendor(
+            $vendor,
+            'quote_created',
+            'طلب عرض سعر جديد',
+            $quote->title.' — '.$project->title,
+            [
+                'route' => '/quotes/'.$quote->id.'/respond',
+                'quote_id' => $quote->id,
+                'project_id' => $project->id,
+            ]
+        );
 
         return response()->json(['data' => $quote], 201);
     }
@@ -96,6 +117,18 @@ class QuoteController extends Controller
             $quote->update(['status' => 'sent']);
         });
 
+        $this->notifications->notifyCompanyUsers(
+            $quote->company_id,
+            'quote_responded',
+            'رد على عرض سعر',
+            $quote->title,
+            [
+                'route' => '/quotes/'.$quote->id,
+                'quote_id' => $quote->id,
+                'project_id' => $quote->project_id,
+            ]
+        );
+
         return response()->json(['data' => $quote->fresh()->load('lines')]);
     }
 
@@ -108,7 +141,8 @@ class QuoteController extends Controller
             'لا يمكن قبول هذا العرض في حالته الحالية'
         );
         abort_if($quote->lines()->count() === 0, 422, 'العرض بدون بنود');
-        $job = DB::transaction(function () use ($quote) {
+        $quote->load('vendor');
+        DB::transaction(function () use ($quote) {
             $total = (float) $quote->lines()->selectRaw('SUM(qty * unit_price) as t')->value('t');
             $contractor = Party::query()->firstOrCreate(
                 [
@@ -122,6 +156,7 @@ class QuoteController extends Controller
                 'company_id' => $quote->company_id,
                 'project_id' => $quote->project_id,
                 'contractor_id' => $contractor->id,
+                'vendor_account_id' => $quote->vendor_account_id,
                 'title' => $quote->title,
                 'qty' => 1,
                 'unit_price' => $total,
@@ -130,9 +165,25 @@ class QuoteController extends Controller
                 'status' => 'accepted',
                 'contractor_job_id' => $job->id,
             ]);
-
-            return $job;
+            if ($quote->project_id) {
+                $project = \App\Models\Project::query()->find($quote->project_id);
+                if ($project && $quote->vendor) {
+                    $this->membership->syncVendor($project, $quote->vendor, 'contractor');
+                }
+            }
         });
+
+        $this->notifications->notifyVendor(
+            $quote->vendor,
+            'quote_accepted',
+            'تم قبول عرض السعر',
+            $quote->title,
+            [
+                'route' => '/quotes/'.$quote->id,
+                'quote_id' => $quote->id,
+                'project_id' => $quote->project_id,
+            ]
+        );
 
         return response()->json(['data' => $quote->fresh()->load(['lines', 'contractorJob'])]);
     }
@@ -145,7 +196,20 @@ class QuoteController extends Controller
             422,
             'لا يمكن رفض هذا العرض في حالته الحالية'
         );
+        $quote->load('vendor');
         $quote->update(['status' => 'rejected']);
+
+        $this->notifications->notifyVendor(
+            $quote->vendor,
+            'quote_rejected',
+            'تم رفض عرض السعر',
+            $quote->title,
+            [
+                'route' => '/quotes/'.$quote->id,
+                'quote_id' => $quote->id,
+                'project_id' => $quote->project_id,
+            ]
+        );
 
         return response()->json(['data' => $quote]);
     }

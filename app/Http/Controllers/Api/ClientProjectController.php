@@ -9,12 +9,16 @@ use App\Models\DesignBoard;
 use App\Models\DesignPlan;
 use App\Models\DesignPlanComment;
 use App\Models\Project;
+use App\Models\ProjectRequest;
 use App\Models\SignOff;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 
 class ClientProjectController extends Controller
 {
     use ResolvesActor;
+
+    public function __construct(private NotificationService $notifications) {}
 
     public function index(Request $request)
     {
@@ -93,6 +97,23 @@ class ClientProjectController extends Controller
             'design_reject_reason' => null,
         ]);
 
+        ProjectRequest::query()
+            ->where('project_id', $proj->id)
+            ->where('type', 'design_approval')
+            ->whereIn('status', ['open', 'in_review'])
+            ->update(['status' => 'approved', 'decided_at' => now()]);
+
+        $this->notifications->notifyCompanyUsers(
+            $proj->company_id,
+            'design_approved',
+            'العميل اعتمد التصميم',
+            $proj->title,
+            [
+                'route' => '/projects/'.$proj->id.'/design',
+                'project_id' => $proj->id,
+            ]
+        );
+
         return response()->json(['data' => $proj->fresh()]);
     }
 
@@ -108,6 +129,27 @@ class ClientProjectController extends Controller
             'design_reject_reason' => $data['reason'],
             'design_approved_at' => null,
         ]);
+
+        ProjectRequest::query()
+            ->where('project_id', $proj->id)
+            ->where('type', 'design_approval')
+            ->whereIn('status', ['open', 'in_review'])
+            ->update([
+                'status' => 'rejected',
+                'decision_note' => $data['reason'],
+                'decided_at' => now(),
+            ]);
+
+        $this->notifications->notifyCompanyUsers(
+            $proj->company_id,
+            'design_rejected',
+            'العميل رفض التصميم',
+            $proj->title.' — '.$data['reason'],
+            [
+                'route' => '/projects/'.$proj->id.'/design',
+                'project_id' => $proj->id,
+            ]
+        );
 
         return response()->json(['data' => $proj->fresh()]);
     }

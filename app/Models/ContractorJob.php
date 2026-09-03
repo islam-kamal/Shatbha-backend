@@ -12,6 +12,7 @@ class ContractorJob extends Model
         'company_id',
         'project_id',
         'contractor_id',
+        'vendor_account_id',
         'title',
         'qty',
         'unit_price',
@@ -33,6 +34,11 @@ class ContractorJob extends Model
     public function contractor(): BelongsTo
     {
         return $this->belongsTo(Party::class, 'contractor_id');
+    }
+
+    public function vendorAccount(): BelongsTo
+    {
+        return $this->belongsTo(VendorAccount::class, 'vendor_account_id');
     }
 
     public function payments(): HasMany

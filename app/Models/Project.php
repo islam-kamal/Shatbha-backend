@@ -143,4 +143,9 @@ class Project extends Model
     {
         return $this->hasMany(ContractorJob::class);
     }
+
+    public function requests(): HasMany
+    {
+        return $this->hasMany(ProjectRequest::class);
+    }
 }
