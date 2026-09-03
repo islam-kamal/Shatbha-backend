@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Party extends Model
 {
@@ -43,9 +44,14 @@ class Party extends Model
         return $this->hasMany(ContractorJob::class, 'contractor_id');
     }
 
-    public function clientAccount(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function clientAccount(): HasOne
     {
         return $this->hasOne(ClientAccount::class);
+    }
+
+    public function vendorAccount(): HasOne
+    {
+        return $this->hasOne(VendorAccount::class);
     }
 
     public function projects(): HasMany

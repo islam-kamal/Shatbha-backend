@@ -424,6 +424,17 @@ class DesignController extends Controller
             ->whereIn('status', ['in_review', 'rejected'])
             ->exists();
         abort_unless(! $blocked, 422, 'يوجد مخططات قيد المراجعة أو مرفوضة');
+        abort_unless($proj->customer_id, 422, 'اربط المشروع بعميل قبل الإرسال');
+
+        $clients = \App\Models\ClientAccount::query()
+            ->where('party_id', $proj->customer_id)
+            ->where('is_active', true)
+            ->get();
+        abort_unless(
+            $clients->isNotEmpty(),
+            422,
+            'لا يوجد حساب دخول لهذا العميل. عند إضافة العميل أدخل بريده ليُنشأ الحساب تلقائياً، أو أعد إرسال الدعوة من شاشة العملاء.'
+        );
 
         $proj->update([
             'design_status' => 'pending',
@@ -432,24 +443,18 @@ class DesignController extends Controller
             'design_approved_at' => null,
         ]);
 
-        $clientAccount = null;
-        if ($proj->customer_id) {
-            $this->notifications->notifyClientForParty(
-                $proj->customer_id,
-                'design_submitted',
-                'تصميم بانتظار اعتمادك',
-                'مشروع '.$proj->title.' جاهز للمراجعة',
-                [
-                    'route' => '/client/projects/'.$proj->id.'/design-approval',
-                    'project_id' => $proj->id,
-                ]
-            );
-            $clientAccount = \App\Models\ClientAccount::query()
-                ->where('party_id', $proj->customer_id)
-                ->where('is_active', true)
-                ->first();
-        }
+        $this->notifications->notifyMany(
+            $clients,
+            'design_submitted',
+            'تصميم بانتظار اعتمادك',
+            'مشروع '.$proj->title.' جاهز للمراجعة',
+            [
+                'route' => '/client/projects/'.$proj->id.'/design-approval',
+                'project_id' => $proj->id,
+            ]
+        );
 
+        $clientAccount = $clients->first();
         ProjectRequest::query()->create([
             'project_id' => $proj->id,
             'company_id' => $proj->company_id,
@@ -457,8 +462,8 @@ class DesignController extends Controller
             'title' => 'اعتماد تصميم — '.$proj->title,
             'body' => 'يرجى مراجعة حزمة التصميم واعتمادها أو رفضها.',
             'status' => 'open',
-            'assignee_type' => $clientAccount ? 'client' : null,
-            'assignee_id' => $clientAccount?->id,
+            'assignee_type' => 'client',
+            'assignee_id' => $clientAccount->id,
             'created_by_user_id' => $this->companyUser($request)->id,
             'related_type' => Project::class,
             'related_id' => $proj->id,

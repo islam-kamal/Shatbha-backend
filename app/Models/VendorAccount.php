@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
@@ -11,6 +12,7 @@ class VendorAccount extends Authenticatable
     use HasApiTokens;
 
     protected $fillable = [
+        'party_id',
         'type',
         'name',
         'email',
@@ -33,6 +35,11 @@ class VendorAccount extends Authenticatable
             'reviews_count' => 'integer',
             'is_active' => 'boolean',
         ];
+    }
+
+    public function party(): BelongsTo
+    {
+        return $this->belongsTo(Party::class);
     }
 
     public function products(): HasMany
