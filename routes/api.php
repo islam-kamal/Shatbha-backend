@@ -54,6 +54,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead']);
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
 
+    Route::get('/client/me', [ClientAuthController::class, 'me']);
     Route::get('/client/projects', [ClientProjectController::class, 'index']);
     Route::get('/client/projects/{project}', [ClientProjectController::class, 'show']);
     Route::get('/client/projects/{project}/design', [ClientProjectController::class, 'designPackage']);

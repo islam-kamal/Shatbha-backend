@@ -31,6 +31,17 @@ class ClientAuthController extends Controller
         ]);
     }
 
+    public function me(Request $request)
+    {
+        $client = $request->user();
+        abort_unless($client instanceof ClientAccount, 403, 'غير مصرح');
+        $client->load('party');
+
+        return response()->json([
+            'client' => $this->payload($client),
+        ]);
+    }
+
     private function payload(ClientAccount $client): array
     {
         return [
