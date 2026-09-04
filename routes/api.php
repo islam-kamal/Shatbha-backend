@@ -27,11 +27,22 @@ use App\Http\Controllers\Api\ProjectRequestController;
 use App\Http\Controllers\Api\QuoteController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ReviewController;
+use App\Http\Controllers\Api\ChangeOrderController;
+use App\Http\Controllers\Api\ClientSelectionController;
+use App\Http\Controllers\Api\ContractController;
+use App\Http\Controllers\Api\DailySiteLogController;
+use App\Http\Controllers\Api\DesignVersionController;
+use App\Http\Controllers\Api\LeadController;
+use App\Http\Controllers\Api\PaymentInstallmentController;
+use App\Http\Controllers\Api\ProjectOsController;
+use App\Http\Controllers\Api\ProposalController;
+use App\Http\Controllers\Api\SiteVisitController;
 use App\Http\Controllers\Api\VendorAuthController;
 use App\Http\Controllers\Api\VendorController;
 use App\Http\Controllers\Api\VendorPortfolioController;
 use App\Http\Controllers\Api\VendorProjectController;
 use App\Http\Controllers\Api\WarehouseController;
+use App\Http\Controllers\Api\WarrantyClaimController;
 use App\Http\Controllers\Api\WorkTypeController;
 use Illuminate\Support\Facades\Route;
 
@@ -235,4 +246,64 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/projects/{project}/handover/sign-offs', [HandoverController::class, 'signOffs']);
     Route::post('/projects/{project}/handover/sign-offs', [HandoverController::class, 'storeSignOff']);
     Route::post('/projects/{project}/handover/complete', [HandoverController::class, 'markHandedOver']);
+
+    // ── Project OS ─────────────────────────────────────────────────────────────
+    Route::get('/command-center', [ProjectOsController::class, 'commandCenter']);
+
+    // Lifecycle, financials, audit, client-hub per project
+    Route::get('/projects/{project}/lifecycle',   [ProjectOsController::class, 'lifecycle']);
+    Route::get('/projects/{project}/financials',  [ProjectOsController::class, 'financials']);
+    Route::get('/projects/{project}/audit',       [ProjectOsController::class, 'audit']);
+    Route::get('/projects/{project}/client-hub',  [ProjectOsController::class, 'clientHub']);
+
+    // Leads
+    Route::get('/leads',              [LeadController::class, 'index']);
+    Route::post('/leads',             [LeadController::class, 'store']);
+    Route::get('/leads/{lead}',       [LeadController::class, 'show']);
+    Route::put('/leads/{lead}',       [LeadController::class, 'update']);
+    Route::post('/leads/{lead}/win',  [LeadController::class, 'win']);
+
+    // Site Visits
+    Route::get('/site-visits',   [SiteVisitController::class, 'index']);
+    Route::post('/site-visits',  [SiteVisitController::class, 'store']);
+
+    // Proposals
+    Route::get('/proposals',   [ProposalController::class, 'index']);
+    Route::post('/proposals',  [ProposalController::class, 'store']);
+
+    // Contracts
+    Route::get('/contracts',         [ContractController::class, 'index']);
+    Route::post('/contracts',        [ContractController::class, 'store']);
+    Route::get('/contracts/{contract}', [ContractController::class, 'show']);
+
+    // Payment Installments
+    Route::get('/payment-installments', [PaymentInstallmentController::class, 'index']);
+    Route::post('/payment-installments/{installment}/mark-paid', [PaymentInstallmentController::class, 'markPaid']);
+
+    // Design Versions
+    Route::get('/design-versions',                         [DesignVersionController::class, 'index']);
+    Route::post('/design-versions',                        [DesignVersionController::class, 'store']);
+    Route::post('/design-versions/{designVersion}/submit', [DesignVersionController::class, 'submit']);
+    Route::post('/design-versions/{designVersion}/approve',[DesignVersionController::class, 'approve']);
+    Route::post('/design-versions/{designVersion}/reject', [DesignVersionController::class, 'reject']);
+
+    // Client Selections
+    Route::get('/client-selections',                          [ClientSelectionController::class, 'index']);
+    Route::post('/client-selections',                         [ClientSelectionController::class, 'store']);
+    Route::post('/client-selections/{clientSelection}/approve', [ClientSelectionController::class, 'approve']);
+
+    // Change Orders
+    Route::get('/change-orders',                          [ChangeOrderController::class, 'index']);
+    Route::post('/change-orders',                         [ChangeOrderController::class, 'store']);
+    Route::post('/change-orders/{changeOrder}/approve',   [ChangeOrderController::class, 'approve']);
+    Route::post('/change-orders/{changeOrder}/reject',    [ChangeOrderController::class, 'reject']);
+
+    // Daily Site Logs
+    Route::get('/daily-site-logs',   [DailySiteLogController::class, 'index']);
+    Route::post('/daily-site-logs',  [DailySiteLogController::class, 'store']);
+
+    // Warranty Claims
+    Route::get('/warranty-claims',                            [WarrantyClaimController::class, 'index']);
+    Route::post('/warranty-claims',                           [WarrantyClaimController::class, 'store']);
+    Route::post('/warranty-claims/{warrantyClaim}/resolve',   [WarrantyClaimController::class, 'resolve']);
 });

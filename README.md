@@ -23,6 +23,9 @@ Repository: [github.com/islam-kamal/Shatbha-backend](https://github.com/islam-ka
 10. [Project layout](#project-layout)
 11. [Tests](#tests)
 12. [Deployment](#deployment)
+    - [Two ways to deploy](#two-ways-to-deploy)
+    - [Way 1 — Reset (wipes all data)](#way-1--reset-wipes-all-data)
+    - [Way 2 — Update in place (keeps all data)](#way-2--update-in-place-keeps-all-data)
 13. [Troubleshooting](#troubleshooting)
 
 ---
@@ -87,6 +90,8 @@ Seeded demo numbers (after `migrate:fresh --seed`): contractor remaining **7,000
 
 Default database is **SQLite**. No Docker required for day-to-day API work.
 
+First time (or when you want a **clean local DB** — this is [Way 1](#way-1--reset-wipes-all-data), it deletes local data):
+
 ```bash
 git clone https://github.com/islam-kamal/Shatbha-backend.git
 cd Shatbha-backend
@@ -116,6 +121,8 @@ curl -s http://127.0.0.1:8000/api/v1/me \
   -H 'Accept: application/json' \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
+
+To update local code **without** wiping SQLite, use [Way 2](#way-2--update-in-place-keeps-all-data) (`migrate --force` + `EcosystemSeeder`, not `migrate:fresh`).
 
 ### Optional MySQL
 
@@ -157,11 +164,12 @@ Useful Artisan:
 
 ```bash
 php artisan route:list --path=api
-php artisan migrate
-php artisan migrate:fresh --seed   # wipes local DB
+php artisan migrate                          # apply new tables/columns; keeps rows
+php artisan migrate:fresh --seed             # RESET: drops every table (local/demo only)
+php artisan db:seed --class=EcosystemSeeder  # safe extras; does not wipe journals
 php artisan tinker
 php artisan test
-php artisan key:generate --show    # print a key for hosting (do not commit)
+php artisan key:generate --show              # print a key for hosting (do not commit)
 ```
 
 API prefix and Sanctum are wired in `bootstrap/app.php`. CORS is open enough for a mobile client; if you add a web admin later, tighten `config/cors.php`.
@@ -295,7 +303,7 @@ Boot in Docker (`scripts/00-laravel-deploy.sh`):
 
 1. Parse `DATABASE_URL` / `DB_URL` into `DB_HOST`, `DB_USERNAME`, etc. (`scripts/write-env.php`). Neon **pooler** hostnames (`-pooler`) are rewritten to the direct endpoint.
 2. PDO ping with `sslmode=require` (retries for Neon cold start).
-3. `php artisan migrate --force` and seed if needed.
+3. `php artisan migrate --force` then `php artisan db:seed --force` (see [Way 1](#way-1--reset-wipes-all-data) vs [Way 2](#way-2--update-in-place-keeps-all-data)).
 4. Start Apache on port **80**.
 
 ---
@@ -315,6 +323,87 @@ php artisan test
 The app is a **Docker** image (`Dockerfile`). PHP is not a native runtime on most free PaaS hosts, so you always deploy the container. Runtime needs **PHP 8.4** (the lockfile will fail on 8.2).
 
 **Secrets stay in the host’s environment UI**, never in git.
+
+There are **two deploy paths**. Pick one before you run Artisan. Mixing them (especially `migrate:fresh` on a live Neon/Postgres) will delete customers, journals, expenses, and jobs.
+
+---
+
+### Two ways to deploy
+
+| | Way 1 — Reset | Way 2 — Update in place |
+|---|---|---|
+| **Keeps existing data?** | **No.** Drops every table and reseeds demo rows. | **Yes.** Applies new schema only. Journals, parties, jobs, and expenses stay. |
+| **Command that matters** | `php artisan migrate:fresh --seed` | `php artisan migrate --force` then `db:seed --class=EcosystemSeeder` |
+| **When to use** | First empty database, local demo reset, or you **intentionally** want a clean start. | Every production/code update after the app already has real (or demo) data. |
+| **Typical host** | Local SQLite, brand-new Neon, or recreating the database. | SSH / existing server, or a Docker restart against the **same** Postgres. |
+
+`migrate` only runs **new** migration files. `migrate:fresh` **drops all tables first**. `EcosystemSeeder` is idempotent (skips vendors/products/projects that already exist). `DatabaseSeeder` also skips if `admin@shatbha.test` already exists, then calls `EcosystemSeeder` — but **`migrate:fresh` always wipes first**, so Way 1 still destroys data.
+
+---
+
+### Way 1 — Reset (wipes all data)
+
+Use this when the database should start from zero: empty host, local “start over”, or you accept losing everything.
+
+**What is deleted:** all tables and rows — users, company, customers, contractors, customer entries, expenses, jobs, payments, marketplace/ecosystem seed data.
+
+```bash
+git pull origin main
+composer install --no-dev --optimize-autoloader
+php artisan migrate:fresh --seed
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+`migrate:fresh --seed` drops the schema, recreates it, then runs `DatabaseSeeder` (demo company **شطبة**, admin/clerk, sample journals) and `EcosystemSeeder` (marketplace vendors, sample project).
+
+Local equivalent (same wipe):
+
+```bash
+php artisan migrate:fresh --seed
+php artisan serve --host=127.0.0.1 --port=8000
+```
+
+**Do not run Way 1 on production Neon** unless you mean to erase the live ERP.
+
+On Docker/Northflank, a **normal redeploy does not run `migrate:fresh`**. Data is only wiped if you drop/recreate the Neon project, empty the database, or you SSH in and run `migrate:fresh` yourself.
+
+---
+
+### Way 2 — Update in place (keeps all data)
+
+Use this for every later deploy: new features, bug fixes, new migrations. The database file/server stays the same; only missing tables/columns are added.
+
+```bash
+git pull origin main
+
+composer install --no-dev --optimize-autoloader
+
+php artisan migrate --force
+
+php artisan db:seed --class=EcosystemSeeder --force
+
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+| Step | Why |
+|---|---|
+| `git pull origin main` | New code, migrations, and seeders. |
+| `composer install --no-dev --optimize-autoloader` | Production PHP packages; no test/dev packages. |
+| `php artisan migrate --force` | Run **pending** migrations only. Existing rows are not deleted. `--force` is required when `APP_ENV=production`. |
+| `php artisan db:seed --class=EcosystemSeeder --force` | Fill marketplace/project **gaps** if missing. Does **not** recreate the demo journals or wipe parties. |
+| `config:cache` / `route:cache` / `view:cache` | Faster boot. After `.env` changes, run `php artisan config:cache` again. |
+
+Do **not** use `migrate:fresh`, `db:wipe`, or `migrate:refresh` here.
+
+If you only need schema updates and no ecosystem rows, you can skip the `EcosystemSeeder` line. Do **not** run `php artisan db:seed --force` (full `DatabaseSeeder`) as a substitute for `migrate:fresh` — on an already-seeded DB it is mostly a no-op (admin email exists), but it is still the wrong habit for production; prefer the class-specific seeder above.
+
+After Way 2, login, customers, and reports should look the same as before the deploy. New API routes from `main` become available once `route:cache` finishes.
+
+**Docker note:** `scripts/00-laravel-deploy.sh` already uses `migrate --force` (Way 2 style) plus a full `db:seed --force`. That seed is safe on a populated DB because `DatabaseSeeder` returns early when the admin user exists. It is **not** a wipe. To match this README exactly on a VM, run the Way 2 block instead of `migrate:fresh`.
 
 ### Tools in this repo
 
@@ -400,6 +489,8 @@ Push `main` to [islam-kamal/Shatbha-backend](https://github.com/islam-kamal/Shat
    - `Neon connected (neondb)`
    - migrate/seed output, then Apache.
 
+First boot against an **empty** Neon DB is effectively Way 1 (demo seed). Later pushes/redeploys against the **same** Neon URL are Way 2 (schema only; data stays). Recreating the Neon project is Way 1 again (all previous data is gone).
+
 #### 4. Verify
 
 ```bash
@@ -450,13 +541,16 @@ File: `render.yaml`. Dashboard: **New → Blueprint** → connect this Git repo.
 
 ### Deploy checklist
 
-1. `git push origin main` so the host builds the latest `Dockerfile` and scripts.
-2. Runtime env includes `APP_KEY` and a **complete** `DATABASE_URL`.
-3. Public port is **80**, not 9000.
-4. `GET /up` returns 200.
-5. `GET /api/v1/db-status` shows `"ok": true` and driver `pgsql`.
-6. Login returns a `token`, not `"Database is not ready"`.
-7. Flutter `API_BASE_URL` matches `APP_URL` (https, no trailing slash).
+1. Choose **Way 1** (wipe) or **Way 2** (keep data) before running Artisan.
+2. `git push origin main` (PaaS) or `git pull origin main` (VM) so the host has the latest code.
+3. Runtime env includes `APP_KEY` and a **complete** `DATABASE_URL`.
+4. Public port is **80**, not 9000.
+5. `GET /up` returns 200.
+6. `GET /api/v1/db-status` shows `"ok": true` and driver `pgsql`.
+7. Login returns a `token`, not `"Database is not ready"`.
+8. After Way 2, existing customers/journals are still there. After Way 1, only seeded demo data remains.
+9. Flutter `API_BASE_URL` matches `APP_URL` (https, no trailing slash).
+10. If you cached config, rebuild caches after changing `.env`: `php artisan config:cache`.
 
 ---
 
@@ -473,6 +567,8 @@ File: `render.yaml`. Dashboard: **New → Blueprint** → connect this Git repo.
 | First request ~30s then OK | Neon cold start | Expected on free Neon. |
 | Clerk login works, P&L is 403 | By design | Use `admin@shatbha.test` for income statement. |
 | Payment 422 Arabic message | Amount > remaining | Reduce `amount`. |
+| Customers/journals gone after deploy | Way 1 (`migrate:fresh`) or a new empty Neon DB | Restore from backup if you have one. Later updates must use [Way 2](#way-2--update-in-place-keeps-all-data). |
+| Config/routes look stale after pull | Old `config:cache` / `route:cache` | Re-run the three cache commands from Way 2. |
 
 ---
 

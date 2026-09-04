@@ -29,6 +29,9 @@ else
     fi
     php artisan config:cache || true
     php artisan route:cache || true
+    # Public uploads are stored under storage/app/public; without this link,
+    # /storage/* hits Laravel's private ServeFile route (403/404).
+    php artisan storage:link --force || true
   else
     echo "WARNING: vendor/autoload.php missing"
   fi

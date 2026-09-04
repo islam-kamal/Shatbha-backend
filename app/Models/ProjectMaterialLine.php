@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProjectMaterialLine extends Model
 {
-    protected $fillable = ['project_id', 'product_id', 'title', 'room_name', 'qty', 'unit_price'];
+    protected $fillable = ['project_id', 'product_id', 'title', 'room_name', 'qty', 'unit_price', 'track_status'];
 
     protected function casts(): array
     {

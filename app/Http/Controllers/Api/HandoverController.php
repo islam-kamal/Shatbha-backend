@@ -137,11 +137,12 @@ class HandoverController extends Controller
         $proj = $this->projectForCompany($request, $project);
         abort_unless($proj->status === 'delivered', 422, 'المشروع لم يُسلّم بعد');
 
+        // Block handover while any snag is still open (critical or otherwise).
         $openSnags = SnagItem::query()
             ->where('project_id', $project)
-            ->where('status', 'open')
+            ->whereNotIn('status', ['closed', 'resolved', 'fixed'])
             ->count();
-        abort_if($openSnags > 0, 422, 'يوجد ملاحظات مفتوحة');
+        abort_if($openSnags > 0, 422, 'لا يمكن التسليم مع ملاحظات مفتوحة — أغلق كل الملاحظات أولاً');
 
         $unchecked = HandoverChecklist::query()
             ->where('project_id', $project)

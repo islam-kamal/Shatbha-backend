@@ -34,7 +34,8 @@ WORKDIR /var/www/html
 COPY . /var/www/html
 COPY --from=vendor /app/vendor /var/www/html/vendor
 
-RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache \
+RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/app/public bootstrap/cache \
+    && ln -sfn /var/www/html/storage/app/public /var/www/html/public/storage \
     && chmod -R 777 storage bootstrap/cache \
     && chmod +x scripts/00-laravel-deploy.sh \
     && chown -R www-data:www-data /var/www/html

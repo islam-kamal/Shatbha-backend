@@ -21,6 +21,19 @@ class Project extends Model
         'start_date',
         'end_date',
         'budget_planned',
+        // Project OS lifecycle fields
+        'lifecycle_status',
+        'next_action',
+        'next_action_label_ar',
+        'progress_design',
+        'progress_procurement',
+        'progress_execution',
+        'progress_finance',
+        'contract_value',
+        'actual_cost',
+        'committed_cost',
+        'forecast_cost',
+        'execution_unlocked',
     ];
 
     protected function casts(): array
@@ -31,6 +44,15 @@ class Project extends Model
             'budget_planned' => 'decimal:2',
             'design_approved_at' => 'datetime',
             'design_submitted_at' => 'datetime',
+            'contract_value' => 'decimal:2',
+            'actual_cost' => 'decimal:2',
+            'committed_cost' => 'decimal:2',
+            'forecast_cost' => 'decimal:2',
+            'execution_unlocked' => 'boolean',
+            'progress_design' => 'integer',
+            'progress_procurement' => 'integer',
+            'progress_execution' => 'integer',
+            'progress_finance' => 'integer',
         ];
     }
 
@@ -147,5 +169,47 @@ class Project extends Model
     public function requests(): HasMany
     {
         return $this->hasMany(ProjectRequest::class);
+    }
+
+    // ── Project OS relations ──────────────────────────────────────────────────
+
+    public function contracts(): HasMany
+    {
+        return $this->hasMany(Contract::class);
+    }
+
+    public function paymentInstallments(): HasMany
+    {
+        return $this->hasMany(PaymentInstallment::class);
+    }
+
+    public function designVersions(): HasMany
+    {
+        return $this->hasMany(DesignVersion::class);
+    }
+
+    public function clientSelections(): HasMany
+    {
+        return $this->hasMany(ClientSelection::class);
+    }
+
+    public function changeOrders(): HasMany
+    {
+        return $this->hasMany(ChangeOrder::class);
+    }
+
+    public function dailySiteLogs(): HasMany
+    {
+        return $this->hasMany(DailySiteLog::class);
+    }
+
+    public function warrantyClaims(): HasMany
+    {
+        return $this->hasMany(WarrantyClaim::class);
+    }
+
+    public function auditEvents(): HasMany
+    {
+        return $this->hasMany(ProjectAuditEvent::class);
     }
 }
