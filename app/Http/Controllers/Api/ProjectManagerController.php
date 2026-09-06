@@ -29,31 +29,45 @@ class ProjectManagerController extends Controller
 
     public function storeTask(Request $request, int $project)
     {
-        $this->projectForCompany($request, $project);
+        $proj = $this->projectForCompany($request, $project);
+        $this->assertExecutionUnlocked($proj);
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'status' => ['nullable', 'string', 'in:todo,doing,done'],
+            'start_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
             'assignee_type' => ['nullable', 'string', 'in:user,vendor'],
             'assignee_id' => ['nullable', 'integer'],
+            'predecessor_task_id' => ['nullable', 'integer', 'exists:tasks,id'],
         ]);
+        $warning = null;
+        if (! empty($data['predecessor_task_id'])) {
+            $pred = Task::query()->where('project_id', $project)->findOrFail($data['predecessor_task_id']);
+            if ($pred->status !== 'done') {
+                $warning = 'المهمة السابقة غير مكتملة بعد';
+            }
+        }
         $task = Task::query()->create(['project_id' => $project, ...$data]);
+        app(\App\Services\ProjectProgressService::class)->recompute($proj);
 
-        return response()->json(['data' => $task], 201);
+        return response()->json(['data' => $task, 'meta' => ['predecessor_warning' => $warning]], 201);
     }
 
     public function updateTask(Request $request, int $project, Task $task)
     {
-        $this->projectForCompany($request, $project);
+        $proj = $this->projectForCompany($request, $project);
         abort_unless($task->project_id === $project, 404);
         $data = $request->validate([
             'title' => ['sometimes', 'string', 'max:255'],
             'status' => ['nullable', 'string', 'in:todo,doing,done'],
+            'start_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
             'assignee_type' => ['nullable', 'string', 'in:user,vendor'],
             'assignee_id' => ['nullable', 'integer'],
+            'predecessor_task_id' => ['nullable', 'integer', 'exists:tasks,id'],
         ]);
         $task->update($data);
+        app(\App\Services\ProjectProgressService::class)->recompute($proj);
 
         return response()->json(['data' => $task->fresh()]);
     }

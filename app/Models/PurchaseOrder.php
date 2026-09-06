@@ -14,11 +14,17 @@ class PurchaseOrder extends Model
         'vendor_account_id',
         'status',
         'ordered_on',
+        'expected_delivery_on',
+        'actual_delivery_on',
     ];
 
     protected function casts(): array
     {
-        return ['ordered_on' => 'date'];
+        return [
+            'ordered_on' => 'date',
+            'expected_delivery_on' => 'date',
+            'actual_delivery_on' => 'date',
+        ];
     }
 
     public function company(): BelongsTo

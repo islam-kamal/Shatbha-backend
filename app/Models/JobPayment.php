@@ -9,6 +9,7 @@ class JobPayment extends Model
 {
     protected $fillable = [
         'job_id',
+        'milestone_id',
         'sequence',
         'amount',
         'paid_on',

@@ -214,6 +214,34 @@ class QuoteController extends Controller
         return response()->json(['data' => $quote]);
     }
 
+    public function compare(Request $request)
+    {
+        $data = $request->validate([
+            'project_id' => ['required', 'integer'],
+            'title' => ['nullable', 'string'],
+        ]);
+        $this->projectForCompany($request, (int) $data['project_id']);
+        $quotes = QuoteRequest::query()
+            ->with(['vendor', 'lines'])
+            ->where('company_id', $this->companyId($request))
+            ->where('project_id', (int) $data['project_id'])
+            ->when($request->filled('title'), fn ($q) => $q->where('title', 'like', '%'.$data['title'].'%'))
+            ->whereIn('status', ['sent', 'accepted', 'rejected'])
+            ->get()
+            ->map(function (QuoteRequest $quote) {
+                $total = (float) $quote->lines->sum(fn ($l) => (float) $l->qty * (float) $l->unit_price);
+
+                return [
+                    ...$quote->toArray(),
+                    'total_price' => round($total, 2),
+                ];
+            })
+            ->sortBy('total_price')
+            ->values();
+
+        return response()->json(['data' => $quotes]);
+    }
+
     private function authorizeQuote(Request $request, QuoteRequest $quote): void
     {
         if ($this->isVendor($request)) {

@@ -11,18 +11,28 @@ class Task extends Model
         'project_id',
         'title',
         'status',
+        'start_date',
         'due_date',
         'assignee_type',
         'assignee_id',
+        'predecessor_task_id',
     ];
 
     protected function casts(): array
     {
-        return ['due_date' => 'date'];
+        return [
+            'start_date' => 'date',
+            'due_date' => 'date',
+        ];
     }
 
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function predecessor(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'predecessor_task_id');
     }
 }

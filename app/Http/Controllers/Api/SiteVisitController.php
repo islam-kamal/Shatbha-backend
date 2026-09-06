@@ -27,21 +27,48 @@ class SiteVisitController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'lead_id'      => ['required', 'integer'],
+            'lead_id' => ['required', 'integer'],
             'scheduled_at' => ['nullable', 'date'],
-            'notes'        => ['nullable', 'string'],
-            'status'       => ['nullable', 'string', 'in:scheduled,completed,cancelled'],
+            'notes' => ['nullable', 'string'],
+            'status' => ['nullable', 'string', 'in:scheduled,completed,cancelled'],
+            'checklist_json' => ['nullable', 'array'],
+            'photos_json' => ['nullable', 'array'],
         ]);
 
         $companyId = $this->companyId($request);
-
-        // Verify lead belongs to company
-        Lead::query()->where('company_id', $companyId)->findOrFail($data['lead_id']);
+        $lead = Lead::query()->where('company_id', $companyId)->findOrFail($data['lead_id']);
 
         $data['company_id'] = $companyId;
         $data['status'] = $data['status'] ?? 'scheduled';
         $visit = SiteVisit::query()->create($data);
 
+        if (in_array($lead->status, ['new', 'contacted'], true)) {
+            $lead->update(['status' => 'site_visit_scheduled']);
+        }
+
         return response()->json(['data' => $visit], 201);
+    }
+
+    public function complete(Request $request, SiteVisit $siteVisit)
+    {
+        abort_unless($siteVisit->company_id === $this->companyId($request), 404);
+        $data = $request->validate([
+            'checklist_json' => ['nullable', 'array'],
+            'photos_json' => ['nullable', 'array'],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        $siteVisit->update([
+            ...$data,
+            'status' => 'completed',
+            'completed_at' => now(),
+        ]);
+
+        $lead = $siteVisit->lead;
+        if ($lead && in_array($lead->status, ['new', 'contacted', 'site_visit_scheduled'], true)) {
+            $lead->update(['status' => 'visited']);
+        }
+
+        return response()->json(['data' => $siteVisit->fresh()]);
     }
 }

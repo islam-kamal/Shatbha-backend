@@ -46,16 +46,28 @@ class JobController extends Controller
         $data = $request->validate([
             'amount' => ['required', 'numeric', 'gt:0'],
             'paid_on' => ['required', 'date'],
+            'milestone_id' => ['nullable', 'integer'],
         ]);
         $remaining = (float) $job->remaining();
         abort_if((float) $data['amount'] > $remaining + 0.001, 422, 'المبلغ يتجاوز المتبقي');
         $seq = (int) $job->payments()->max('sequence') + 1;
         JobPayment::query()->create([
             'job_id' => $job->id,
+            'milestone_id' => $data['milestone_id'] ?? null,
             'sequence' => $seq,
             'amount' => $data['amount'],
             'paid_on' => $data['paid_on'],
         ]);
+        if ($job->project_id) {
+            \App\Models\ProjectAuditEvent::query()->create([
+                'company_id' => $job->company_id,
+                'project_id' => $job->project_id,
+                'event_type' => 'contractor_payment',
+                'summary' => 'دفعة مقاول: '.$job->title.' — '.$data['amount'],
+                'actor_type' => 'company',
+                'created_at' => now(),
+            ]);
+        }
         $job->load(['contractor', 'payments']);
 
         return response()->json(['data' => $this->payload($job)], 201);

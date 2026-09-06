@@ -7,7 +7,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SnagItem extends Model
 {
-    protected $fillable = ['project_id', 'title', 'status'];
+    protected $fillable = [
+        'project_id',
+        'title',
+        'severity',
+        'description',
+        'location',
+        'status',
+    ];
 
     public function project(): BelongsTo
     {

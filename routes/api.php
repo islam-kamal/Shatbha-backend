@@ -159,10 +159,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/projects/{project}/materials', [ProjectMaterialController::class, 'index']);
     Route::post('/projects/{project}/materials', [ProjectMaterialController::class, 'store']);
     Route::post('/projects/{project}/materials/generate-po', [ProjectMaterialController::class, 'generatePo']);
+    Route::post('/projects/{project}/materials/{line}/track', [ProjectMaterialController::class, 'transitionTrack']);
     Route::put('/projects/{project}/materials/{line}', [ProjectMaterialController::class, 'update']);
     Route::delete('/projects/{project}/materials/{line}', [ProjectMaterialController::class, 'destroy']);
 
     Route::get('/quotes', [QuoteController::class, 'index']);
+    Route::get('/quotes/compare', [QuoteController::class, 'compare']);
     Route::post('/quotes', [QuoteController::class, 'store']);
     Route::get('/quotes/{quote}', [QuoteController::class, 'show']);
     Route::post('/quotes/{quote}/respond', [QuoteController::class, 'respond']);
@@ -266,6 +268,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Site Visits
     Route::get('/site-visits',   [SiteVisitController::class, 'index']);
     Route::post('/site-visits',  [SiteVisitController::class, 'store']);
+    Route::post('/site-visits/{siteVisit}/complete', [SiteVisitController::class, 'complete']);
 
     // Proposals
     Route::get('/proposals',   [ProposalController::class, 'index']);
@@ -278,6 +281,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Payment Installments
     Route::get('/payment-installments', [PaymentInstallmentController::class, 'index']);
+    Route::post('/payment-installments', [PaymentInstallmentController::class, 'store']);
     Route::post('/payment-installments/{installment}/mark-paid', [PaymentInstallmentController::class, 'markPaid']);
 
     // Design Versions
@@ -290,6 +294,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Client Selections
     Route::get('/client-selections',                          [ClientSelectionController::class, 'index']);
     Route::post('/client-selections',                         [ClientSelectionController::class, 'store']);
+    Route::post('/client-selections/{clientSelection}/select', [ClientSelectionController::class, 'select']);
     Route::post('/client-selections/{clientSelection}/approve', [ClientSelectionController::class, 'approve']);
 
     // Change Orders
@@ -305,5 +310,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Warranty Claims
     Route::get('/warranty-claims',                            [WarrantyClaimController::class, 'index']);
     Route::post('/warranty-claims',                           [WarrantyClaimController::class, 'store']);
+    Route::post('/warranty-claims/{warrantyClaim}/assign',    [WarrantyClaimController::class, 'assign']);
     Route::post('/warranty-claims/{warrantyClaim}/resolve',   [WarrantyClaimController::class, 'resolve']);
 });

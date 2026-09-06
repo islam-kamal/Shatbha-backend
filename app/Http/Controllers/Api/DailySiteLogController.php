@@ -28,26 +28,26 @@ class DailySiteLogController extends Controller
         $data = $request->validate([
             'project_id'         => ['required', 'integer'],
             'log_date'           => ['required', 'date'],
-            // Accept both 'workers_on_site' (Flutter) and 'workers_count' (DB)
             'workers_on_site'    => ['nullable', 'integer', 'min:0'],
             'workers_count'      => ['nullable', 'integer', 'min:0'],
             'contractors_text'   => ['nullable', 'string'],
-            // Accept 'summary' (Flutter) as alias for 'work_completed'
             'summary'            => ['nullable', 'string'],
             'work_completed'     => ['nullable', 'string'],
             'materials_received' => ['nullable', 'string'],
             'problems'           => ['nullable', 'string'],
-            // Accept 'progress_notes' (Flutter) as alias for 'notes'
             'progress_notes'     => ['nullable', 'string'],
             'notes'              => ['nullable', 'string'],
             'tomorrow_plan'      => ['nullable', 'string'],
             'delay_reason'       => ['nullable', 'string', 'max:255'],
+            'photos_json'        => ['nullable', 'array'],
+            'photos_json.*'      => ['string'],
+            'media_ids'          => ['nullable', 'array'],
+            'media_ids.*'        => ['integer'],
         ]);
 
-        $companyId = $this->companyId($request);
-        $this->projectForCompany($request, $data['project_id']);
+        $project = $this->projectForCompany($request, $data['project_id']);
+        $this->assertExecutionUnlocked($project);
 
-        // Normalize Flutter-style field names to DB field names
         if (isset($data['workers_on_site']) && ! isset($data['workers_count'])) {
             $data['workers_count'] = $data['workers_on_site'];
         }
@@ -63,7 +63,15 @@ class DailySiteLogController extends Controller
         }
         unset($data['progress_notes']);
 
-        $data['company_id'] = $companyId;
+        if (! empty($data['media_ids']) && empty($data['photos_json'])) {
+            $data['photos_json'] = array_map(
+                static fn ($id) => ['media_id' => (int) $id],
+                $data['media_ids']
+            );
+        }
+        unset($data['media_ids']);
+
+        $data['company_id'] = $project->company_id;
         $log = DailySiteLog::query()->create($data);
 
         return response()->json(['data' => $log], 201);

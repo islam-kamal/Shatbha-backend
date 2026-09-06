@@ -9,7 +9,7 @@ class ChangeOrder extends Model
 {
     protected $fillable = [
         'company_id', 'project_id', 'title', 'description',
-        'price_delta', 'days_delta', 'status',
+        'price_delta', 'days_delta', 'deposit', 'status',
         'submitted_at', 'decided_at', 'client_comment',
     ];
 
